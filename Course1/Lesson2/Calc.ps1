@@ -25,7 +25,6 @@ function fPushToStack {
     }
     $StackInstance["Data"][$StackInstance["IndexOfNext"]] = $Value
     $StackInstance["IndexOfNext"]++
-    return $Value
 }
 
 function fPopFromStack {
@@ -53,9 +52,6 @@ function fGetStackCurrentLength {
     param(
         [Parameter(Mandatory=$true)] [object]$StackInstance
     )
-    if ($StackInstance["IndexOfNext"] -eq 0) {
-        throw ("An attempt was made to peek a value from an empty stack")
-    }
     return $StackInstance["IndexOfNext"]
 }
 
@@ -87,7 +83,6 @@ function fPushToQueue {
     }
     $QueueInstance["Data"][$IndexOfNext] = $Value
     $QueueInstance["CurrentLength"]++
-    return $Value
 }
 
 function fPullFromQueue {
@@ -104,6 +99,13 @@ function fPullFromQueue {
     }
     $QueueInstance["CurrentLength"]--
     return $Value
+}
+
+function fGetQueueCurrentLength {
+    param(
+        [Parameter(Mandatory=$true)] [object]$QueueInstance
+    )
+    return $QueueInstance["CurrentLength"]
 }
 
 #***************************************
@@ -203,28 +205,67 @@ function fConvertToRpn {
         [Parameter(Mandatory=$true)] [int]$StackLength,
         [Parameter(Mandatory=$true)] [int]$QueueLength
     )
-<#
+
     $ServiceStack = fInitializeStack -Length $StackLength
     $OutputQueue = fInitializeQueue -Length $QueueLength
 
     $TokenStack = fInitializeStack -Length $StackLength
     fTokenizeExpression -Expr $Expr -StackInstance $TokenStack
-
     while ((fGetStackCurrentLength -StackInstance $TokenStack) -ne 0) {
         $Token = fPopFromStack -StackInstance $TokenStack
         if ($Token.Substring(0, 1) -in $Decimals) {
-            fPushToQueue -QueueInstance $OutputQueue -Value $Token
-            break
+            fPushToQueue -QueueInstance $OutputQueue -Value $Token | Out-Null
+            continue
+        }
+        if ($Token -in $Operators.Keys) {
+            while ((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) {
+                $TopStackValue = fPeekFromStack -StackInstance $ServiceStack
+                if (($TopStackValue -in $Operators.Keys) -and ($Operators[$TopStackValue]["Precedence"] -ge $Operators[$TopStackValue]["Precedence"])) {
+                    $TopStackValue = fPopFromStack -StackInstance $ServiceStack
+                    fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
+                }
+                else {
+                    break
+                }
+            }
+            fPushToStack -StackInstance $ServiceStack -Value $Token | Out-Null
+            continue
         }
         if ($Token -eq "(") {
-            fPushToStack -StackInstance $ServiceStack -Value $Token
-            break
+            fPushToStack -StackInstance $ServiceStack -Value $Token | Out-Null
+            continue
+        }
+        if ($Token -eq ")") {
+            while ((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) {
+                $TopStackValue = fPeekFromStack -StackInstance $ServiceStack
+                if ($TopStackValue -ne "(") {
+                    $TopStackValue = fPopFromStack -StackInstance $ServiceStack
+                    fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
+                }
+                else {
+                    $TopStackValue = fPopFromStack -StackInstance $ServiceStack
+                    break
+# ДОБАВИТЬ ОБРАБОТКУ: Если стек закончился до того, как был встречен токен открывающая скобка, то в выражении пропущена скобка.
+                }
+            }
+            continue
         }
     }
-#>
+    while ((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) {
+        $TopStackValue = fPopFromStack -StackInstance $ServiceStack
+# ДОБАВИТЬ ОБРАБОТКУ: Если токен оператор на вершине стека — открывающая скобка, то в выражении пропущена скобка
+        fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
+    }
     #STUB - REMOVE WHEN IMPLEMENTED
     $RpnExpr = $Expr
     #STUB - REMOVE WHEN IMPLEMENTED
+    [string]$RpnExpr = ""
+    for ($i = (fGetQueueCurrentLength -QueueInstance $OutputQueue)-1; $i -ge 0; $i--) {
+        $RpnExpr = $RpnExpr + [string](fPullFromQueue -QueueInstance $OutputQueue)
+        if ($i -ne 0) {
+            $RpnExpr = $RpnExpr + " "
+        }
+    }
     return $RpnExpr
 }
 
