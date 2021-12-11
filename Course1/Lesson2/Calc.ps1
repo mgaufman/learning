@@ -104,13 +104,12 @@ function fCalculateOperator {
         [Parameter(Mandatory=$true)] [decimal[]]$Operands
     )
     switch ($Operator) {
-        "#+" {$Result = $Operands[0]}
-        "#-" {$Result = -$Operands[0]}
-        "+"  {$Result = $Operands[0]+$Operands[1]}
-        "-"  {$Result = $Operands[0]-$Operands[1]}
-        "*"  {$Result = $Operands[0]*$Operands[1]}
-        "/"  {$Result = $Operands[0]/$Operands[1]
-        }
+        "#+" {$Result = $Operands[0]; break}
+        "#-" {$Result = -$Operands[0]; break}
+        "+"  {$Result = $Operands[0]+$Operands[1]; break}
+        "-"  {$Result = $Operands[0]-$Operands[1]; break}
+        "*"  {$Result = $Operands[0]*$Operands[1]; break}
+        "/"  {$Result = $Operands[0]/$Operands[1]; break}
         default: {throw ("Unknown operator encountered ($Operator) while evaluating the expression")}
     }
     return $Result
@@ -118,15 +117,61 @@ function fCalculateOperator {
 
 #***************************************
 
+function fTokenizeExpression {
+    param (
+        [Parameter(Mandatory=$true)] [AllowEmptyString()] [string]$Expr,
+        [Parameter(Mandatory=$true)] [object]$StackInstance
+    )
+
+    $LocalExpr = $Expr.TrimEnd()
+    if ($LocalExpr.Length -eq 0) {
+        return
+    }
+
+    [string[]]$Operators = @("+", "-", "*", "/", "(", ")") # REFACTOR TO DYNAMICALLY CREATE A LIST OF SUPPORTED OPERATORS
+    [string[]]$Decimals = @(".", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+
+    $Char = $LocalExpr.Substring($LocalExpr.Length-1, 1)
+    if ($Char -in $Operators) {
+        fPushToStack -StackInstance $StackInstance -Value $Char | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
+        $NewExpr = $LocalExpr.Substring(0, $LocalExpr.Length-1)
+    }
+    elseif ($Char -in $Decimals) {
+        [string]$NumericalToken = ""
+        for ($i = $LocalExpr.Length - 1; $i -ge 0; $i--) {
+            $Char = $LocalExpr.Substring($i, 1)
+            if ($Char -in $Decimals) {
+                $NumericalToken = $Char + $NumericalToken
+            }
+            else {
+                break
+            }
+        }
+        if ($NumericalToken.IndexOf(".") -ne $NumericalToken.LastIndexOf(".")) {
+            throw ("Number $NumericalToken is incorrect (contains more than one decimal separator)")
+        }
+        if ($NumericalToken.Substring(0 ,1) -eq ".") {
+            $NumericalToken = "0" + $NumericalToken
+        }
+        fPushToStack -StackInstance $StackInstance -Value $NumericalToken | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
+        $NewExpr = $LocalExpr.Substring(0, $LocalExpr.Length-$NumericalToken.Length)
+    }
+    else {
+        throw ("Unexpected character ($Char) encountered at position " + [string]$Expr.Length)
+    }
+    fTokenizeExpression -Expr $NewExpr -StackInstance $StackInstance
+}
+
 function fConvertToRpn {
     param (
         [Parameter(Mandatory=$true)] [string]$Expr,
-        [Parameter(Mandatory=$false)][int]$StackLength = 1024
+        [Parameter(Mandatory=$true)] [int]$StackLength,
+        [Parameter(Mandatory=$true)] [int]$QueueLength
     )
     [string]$RpnExpr = ""
-    #STUB Shunting-yard algorithm should go here
+    #STUB - REMOVE WHEN IMPLEMENTED
     $RpnExpr = $Expr
-    #STUB
+    #STUB - REMOVE WHEN IMPLEMENTED
     return $RpnExpr
 }
 
@@ -136,15 +181,15 @@ function fCalculateRpnExpression {
     param (
         [Parameter(Mandatory=$true)] [string]$RpnExpr,
         [Parameter(Mandatory=$true)] [object]$Operators,
-        [Parameter(Mandatory=$false)][int]$StackLength = 1024
+        [Parameter(Mandatory=$true)] [int]$StackLength
     )
     $Stack = fInitializeStack -Length $StackLength
     $Tokens = $RpnExpr.Split(" ")
     for ($i = 0; $i -lt $Tokens.Count; $i++) {
-        if ($Tokens[$i].Length -eq 0) {     # Skipping mutiple spaces in the input string
+        if ($Tokens[$i].Length -eq 0) {     # Skipping multiple spaces in the input string
             continue
         }
-        if ($Operators.Keys -contains $Tokens[$i]) {
+        if ($Tokens[$i] -in $Operators.Keys) {
             $Arguments = [decimal[]]@(0)*$Operators[$Tokens[$i]]
             for ($ArgNumber = $Operators[$Tokens[$i]]-1; $ArgNumber -ge 0; $ArgNumber--) {
                 $Arguments[$ArgNumber] = [decimal](fPopFromStack -StackInstance $Stack)
@@ -162,6 +207,8 @@ function fCalculateRpnExpression {
 
 $ErrorActionPreference="Stop"
 
+$MaxNumberOfTokens = 1024
+
 while ($Expression.Length -eq 0) {
     $Expression = Read-Host -Prompt "Please enter the expression you want me to calculate ('exit' to quit)"
     if ($Expression.ToLower() -eq "exit") {
@@ -170,10 +217,10 @@ while ($Expression.Length -eq 0) {
     }
 }
 
-$RpnExpression = fConvertToRpn -Expr $Expression
+$RpnExpression = fConvertToRpn -Expr $Expression -StackLength $MaxNumberOfTokens -QueueLength $MaxNumberOfTokens
 
 Write-Host "The same expression in the RPN notation: $RpnExpression"
 
-$CalculationResult = fCalculateRpnExpression -RpnExpr $RpnExpression -Operators $Operators
+$CalculationResult = fCalculateRpnExpression -RpnExpr $RpnExpression -Operators $Operators -StackLength $MaxNumberOfTokens
 
 Write-Host "This expression evaluates to $CalculationResult"
