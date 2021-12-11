@@ -54,15 +54,15 @@ $Operators = @{
 function fCalculateOperator {
     param (
         [Parameter(Mandatory=$true)] [string]$Operator,
-        [Parameter(Mandatory=$true)] [float[]]$Arguments
+        [Parameter(Mandatory=$true)] [float[]]$Operands
     )
     switch ($Operator) {
-        "#+" {$Result = $Arguments[0]}
-        "#-" {$Result = -$Arguments[0]}
-        "+"  {$Result = $Arguments[0]+$Arguments[1]}
-        "-"  {$Result = $Arguments[0]-$Arguments[1]}
-        "*"  {$Result = $Arguments[0]*$Arguments[1]}
-        "/"  {$Result = $Arguments[0]/$Arguments[1]
+        "#+" {$Result = $Operands[0]}
+        "#-" {$Result = -$Operands[0]}
+        "+"  {$Result = $Operands[0]+$Operands[1]}
+        "-"  {$Result = $Operands[0]-$Operands[1]}
+        "*"  {$Result = $Operands[0]*$Operands[1]}
+        "/"  {$Result = $Operands[0]/$Operands[1]
         }
         default: {throw ("Unknown operator encountered ($Operator) while evaluating the expression")}
     }
@@ -95,11 +95,11 @@ function fCalculateRpnExpression {
     $Tokens = $RpnExpr.Split(" ")
     for ($i = 0; $i -lt $Tokens.Count; $i++) {
         if ($Operators.Keys -contains $Tokens[$i]) {
-            $Args = [float[]]@(0)*$Operators[$Tokens[$i]]
+            $Arguments = [float[]]@(0)*$Operators[$Tokens[$i]]
             for ($ArgNumber = $Operators[$Tokens[$i]]-1; $ArgNumber -ge 0; $ArgNumber--) {
-                $Args[$ArgNumber] = [float](fPopFromStack -StackInstance $Stack)
+                $Arguments[$ArgNumber] = [float](fPopFromStack -StackInstance $Stack)
             }
-            $Dummy = fPushToStack -StackInstance $Stack -Value (fCalculateOperator -Operator $Tokens[$i] -Arguments $Args) # $Dummy prevents the function output to be passed through as return (PowerShell specifics)
+            $Dummy = fPushToStack -StackInstance $Stack -Value (fCalculateOperator -Operator $Tokens[$i] -Operands $Arguments) # $Dummy prevents the function output to be passed through as return (PowerShell specifics)
         }
         else {
             $Dummy = fPushToStack -StackInstance $Stack -Value $Tokens[$i]                                                 # $Dummy prevents the function output to be passed through as return (PowerShell specifics)
