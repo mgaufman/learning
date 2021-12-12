@@ -1,5 +1,5 @@
 
-# NOTE: When adding, MODIGYING, or removing an operator make sure the changes are reflected in all functions (3 places as of 12.12.2021)
+# NOTE: When adding, MODIFYING, or removing an operator make sure the changes are reflected in all functions (3 places as of 12.12.2021)
 
 function fGetSupportedOperators {
     param (

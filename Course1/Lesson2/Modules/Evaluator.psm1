@@ -99,18 +99,18 @@ function fConvertToRpn {     # This function uses the shunting-yard algorithm by
             continue
         }
         if ($Token -eq ")") {
-            [bool]$OpeningBracketFound = $false
-            while (((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) -and (-not $OpeningBracketFound)) {
+            [bool]$OpeningParenthesisFound = $false
+            while (((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) -and (-not $OpeningParenthesisFound)) {
                 $TopStackValue = fPopFromStack -StackInstance $ServiceStack
                 if ($TopStackValue -ne "(") {
                     fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
                 }
                 else {
-                    $OpeningBracketFound = $true
+                    $OpeningParenthesisFound = $true
                 }
             }
-            if (-not $OpeningBracketFound) {
-                throw ("A closing bracket encountered without a matching opening one")
+            if (-not $OpeningParenthesisFound) {
+                throw ("A closing parenthesis encountered without a matching opening one")
             }
             continue
         }
@@ -118,7 +118,7 @@ function fConvertToRpn {     # This function uses the shunting-yard algorithm by
     while ((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) {
         $TopStackValue = fPopFromStack -StackInstance $ServiceStack
         if ($TopStackValue -eq "(") {
-            throw ("An opening bracket encountered without a matching closing one")
+            throw ("An opening parenthesis encountered without a matching closing one")
         }
         fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
     }
