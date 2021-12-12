@@ -1,12 +1,18 @@
 
 # NOTE: When adding, MODIFYING, or removing an operator make sure the changes are reflected in all functions (3 places as of 12.12.2021)
 
+#******************************************************************************
+#
+#     Function fGetSupportedOperators: returns auxilliary information on the supported operators
+#
+#******************************************************************************
+
 function fGetSupportedOperators {
     param (
         [Parameter(Mandatory=$false)][ValidateSet("Operators", "Help")] [string]$Purpose = "Operators"
     )
     $Operators = @{
-        "#" = @{"Operands" = [int]1; "Precedence" = [int]9};     # unary plus operstor
+        "#" = @{"Operands" = [int]1; "Precedence" = [int]9};     # unary plus operator
         "~" = @{"Operands" = [int]1; "Precedence" = [int]9};     # unary minus operator
         "+" = @{"Operands" = [int]2; "Precedence" = [int]3};
         "-" = @{"Operands" = [int]2; "Precedence" = [int]3};
@@ -18,6 +24,12 @@ function fGetSupportedOperators {
         "help"      {return ("'+' (unary and binary), '-' (unary and binary), '*' and '/'")}
     }
 }
+
+#******************************************************************************
+#
+#     Function fCalculateOperator: performs calculation for supported operators and returns the result
+#
+#******************************************************************************
 
 function fCalculateOperator {
     param (
@@ -35,6 +47,8 @@ function fCalculateOperator {
     }
     return $Result
 }
+
+#******************************************************************************
 
 Export-ModuleMember -Function fGetSupportedOperators
 Export-ModuleMember -Function fCalculateOperator

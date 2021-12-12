@@ -1,7 +1,28 @@
 
+# NOTE: This module depends on the following modules: Operators.psm1, Queue.psm1, Stack.psm1
+
+#******************************************************************************
+#
+#     Function fGetNumericChars: returns auxilliary information for parsing and processing expressions
+#
+#******************************************************************************
+
 function fGetNumericChars {
-    return [string[]]@(".", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+    param (
+        [Parameter(Mandatory=$false)][ValidateSet("All", "Separator")] [string]$Scope = "All"
+    )
+    $Separator = "."
+    switch ($Scope.ToLower()) {
+        "all"       {return [string[]]@($Separator, "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")}
+        "separator" {return $Separator}
+    }
 }
+
+#******************************************************************************
+#
+#     Function fTokenizeAndValidateExpression: splits an expression into tokens (numbers, operators, parentheses) and validates the expression (assuming it uses the infix notation)
+#
+#******************************************************************************
 
 function fTokenizeAndValidateExpression {
     param (
@@ -10,15 +31,21 @@ function fTokenizeAndValidateExpression {
     )
     $TokenStack = fInitializeStack -Length $MaxNumberOfTokens
     $Operators = fGetSupportedOperators -Purpose "Operators"
-    $Numerics = fGetNumericChars
+    $Numerics = fGetNumericChars -Scope "All"
+    $Separator = fGetNumericChars -Scope "Separator"
 
-    $NewExpr = $Expr
-    while (($LocalExpr = $NewExpr.TrimEnd()).Length -ne 0) {     # The purpose of doing TrimEnd only (and not full Trim) is to maintain character positions exactly the same as in the initial expression - to report the position of a wrong character correctly if required
-        $Char = $LocalExpr.Substring($LocalExpr.Length-1, 1)
+#   Parsing the expression into a stack of tokens (NOTE: we are parsing from the end of the expression)
+    while (($Expr = $Expr.TrimEnd()).Length -ne 0) {     # The purpose of doing TrimEnd only (and not full Trim) is to maintain character positions exactly the same as in the initial expression - to report the position of a wrong character correctly if required
+        $Char = $Expr.Substring($Expr.Length-1, 1)
+        if (($Char -in $Operators.Keys) -or ($Char -in @("(", ")"))) {
+            fPushToStack -StackInstance $TokenStack -Value $Char | Out-Null
+            $Expr = ($Expr.Substring(0, $Expr.Length-1))
+            continue
+        }
         if ($Char -in $Numerics) {
             [string]$NumericalToken = ""
-            for ($i = $LocalExpr.Length - 1; $i -ge 0; $i--) {
-                $Char = $LocalExpr.Substring($i, 1)
+            for ($i = $Expr.Length - 1; $i -ge 0; $i--) {
+                $Char = $Expr.Substring($i, 1)
                 if ($Char -in $Numerics) {
                     $NumericalToken = $Char + $NumericalToken
                 }
@@ -26,21 +53,17 @@ function fTokenizeAndValidateExpression {
                     break
                 }
             }
-            $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-$NumericalToken.Length))     # It is important to calculate $NewExpr fisrt since we modify $NumericalToken further in the function
             fPushToStack -StackInstance $TokenStack -Value $NumericalToken | Out-Null
+            $Expr = ($Expr.Substring(0, $Expr.Length-$NumericalToken.Length))
             continue
         }
-        if (($Char -in $Operators.Keys) -or ($Char -in @("(", ")"))) {
-            $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-1))
-            fPushToStack -StackInstance $TokenStack -Value $Char | Out-Null
-            continue
-        }
-        throw ("Unexpected character '$Char' encountered at position " + $LocalExpr.Length)
+        throw ("Unexpected character '$Char' encountered at position " + $Expr.Length)
     }
+
 #   Tokens transformation & validation
     $UnaryOps = $Operators.Keys | Where-Object {$Operators[$_]["Operands"] -eq 1}
     $BinaryOps = $Operators.Keys | Where-Object {$Operators[$_]["Operands"] -eq 2}
-    # Transforming tokens stack to an array
+    # Copying the tokens stack to an array
     $Tokens = @($null)*$(fGetStackCurrentLength -StackInstance $TokenStack)
     for ($i = 0; $i -lt $Tokens.Count; $i++) {
         $Tokens[$i] = fPopFromStack -StackInstance $TokenStack
@@ -59,15 +82,15 @@ function fTokenizeAndValidateExpression {
             }
             continue
         }
-        # Checking and modifying numeric tokens (adding leading zero for those starting with a dot, and trailing zero for those ending with a dot)
+        # Checking and modifying numeric tokens (adding leading zero for those starting with the decimal separator, and trailing zero for those ending with it)
         if ($Tokens[$i].Substring(0, 1) -in $Numerics) {
-            if ($Tokens[$i].IndexOf(".") -ne $Tokens[$i].LastIndexOf(".")) {     # More than one decimal dot found in a numeric token
+            if ($Tokens[$i].IndexOf($Separator) -ne $Tokens[$i].LastIndexOf($Separator)) {     # More than one decimal separator found in a numeric token
                 throw ("Number " + $Tokens[$i] + " is incorrect (contains more than one decimal separator)")
             }
-            if ($Tokens[$i].Substring(0, 1) -eq ".") {
+            if ($Tokens[$i].Substring(0, 1) -eq $Separator) {
                 $Tokens[$i] = "0" + $Tokens[$i]
             }
-            if ($Tokens[$i].Substring($Tokens[$i].Length-1, 1) -eq ".") {
+            if ($Tokens[$i].Substring($Tokens[$i].Length-1, 1) -eq $Separator) {
                 $Tokens[$i] = $Tokens[$i] + "0"
             }
             continue
@@ -84,7 +107,7 @@ function fTokenizeAndValidateExpression {
     for ($i = 0; $i -lt $Tokens.Count; $i++) {
         # Adjacent binacy operators are not allowed
         if (($i -ne 0) -and ($Tokens[$i-1] -in $BinaryOps) -and ($Tokens[$i] -in $BinaryOps)) {
-            throw ("Two binary operators cannot be adjacent to each other (a parenthesis may be missing)")
+            throw ("Two binary operators cannot be adjacent to each other (a parenthesis or an operand may be missing)")
         }
         # Adjacent numbers are not allowed
         if (($i -ne 0) -and ($Tokens[$i-1].Substring(0, 1) -in $Numerics) -and ($Tokens[$i].Substring(0, 1) -in $Numerics)) {
@@ -109,14 +132,23 @@ function fTokenizeAndValidateExpression {
             }
         }
     }
-#   Creating output stack (backwards conversion from the array)
+#   Creating the output stack (backwards copying from the array)
     for ($i = $Tokens.Count-1; $i -ge 0; $i--) {
         fPushToStack -StackInstance $TokenStack -Value $Tokens[$i] | Out-Null
     }
     return $TokenStack
 }
 
-function fConvertToRpn {     # This function uses the shunting-yard algorithm by Edsger Dijkstra
+#******************************************************************************
+#
+#     Function fConvertToRpn: converts an expression from an infix notation to the RPN notation
+#     NOTES:
+#         This function leverages the shunting-yard algorithm by Edsger Dijkstra
+#         This function relies on the fTokenizeAndValidateExpression function to perform expression and tokens validation
+#
+#******************************************************************************
+
+function fConvertToRpn {
     param (
         [Parameter(Mandatory=$true)] [string]$Expr,
         [Parameter(Mandatory=$true)] [int]$MaxNumberOfTokens
@@ -126,7 +158,9 @@ function fConvertToRpn {     # This function uses the shunting-yard algorithm by
     $Operators = fGetSupportedOperators -Purpose "Operators"
     $Numerics = fGetNumericChars
 
+#   Parsing and validating the input expression
     $TokenStack = fTokenizeAndValidateExpression -Expr $Expr -MaxNumberOfTokens $MaxNumberOfTokens
+#   Processing the tokens in the expression
     while ((fGetStackCurrentLength -StackInstance $TokenStack) -ne 0) {
         $Token = fPopFromStack -StackInstance $TokenStack
         if ($Token.Substring(0, 1) -in $Numerics) {
@@ -168,6 +202,7 @@ function fConvertToRpn {     # This function uses the shunting-yard algorithm by
             continue
         }
     }
+#   Processing the remaining tokens in the stack
     while ((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) {
         $TopStackValue = fPopFromStack -StackInstance $ServiceStack
         if ($TopStackValue -eq "(") {
@@ -175,6 +210,7 @@ function fConvertToRpn {     # This function uses the shunting-yard algorithm by
         }
         fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
     }
+#   Building the resulting RPN string out of the output queue (tokens get separated by spaces)
     [string]$RpnExpr = ""
     for ($i = (fGetQueueCurrentLength -QueueInstance $OutputQueue)-1; $i -ge 0; $i--) {
         $RpnExpr = $RpnExpr + [string](fPullFromQueue -QueueInstance $OutputQueue)
@@ -184,6 +220,15 @@ function fConvertToRpn {     # This function uses the shunting-yard algorithm by
     }
     return $RpnExpr
 }
+
+#******************************************************************************
+#
+#     Function fCalculateRpnExpression: performs stack-based evaluation of an expression in the RPN notation
+#     NOTES:
+#         Input expression must consist of tokens separated by spaces (all extra spaces are discarded)
+#         This function does not perform expression and tokens validation (should be done prior to calling it)
+#
+#******************************************************************************
 
 function fCalculateRpnExpression {
     param (
@@ -216,6 +261,8 @@ function fCalculateRpnExpression {
     }
     return (fPopFromStack -StackInstance $Stack)
 }
+
+#******************************************************************************
 
 Export-ModuleMember -Function fTokenizeAndValidateExpression
 Export-ModuleMember -Function fConvertToRpn
