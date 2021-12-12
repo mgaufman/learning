@@ -1,11 +1,11 @@
 
 param (
     [Parameter(Mandatory=$false)] [string]$Expression = "",
+    [Parameter(Mandatory=$false)] [int]$MaxNumberOfTokens = 1024,
     [Parameter(Mandatory=$false)] [switch]$ConciseOutput = $false     # if $true the script will output the calculation result only (useful for automated testing)
 )
 
 $ErrorActionPreference="Stop"
-$MaxNumberOfTokens = 1024
 
 Import-Module -Name "./Modules/Stack.psm1" -DisableNameChecking
 Import-Module -Name "./Modules/Queue.psm1" -DisableNameChecking
