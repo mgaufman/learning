@@ -167,55 +167,52 @@ function fTokenizeExpression {
     $Numerics = fGetNumericChars
 
     $LocalExpr = $Expr.TrimEnd()     # The purpose of NOT doing TrimStart is to maintain character positions exactly the same as in the initial expression - to report the position of a wrong character correctly if required
-    if ($LocalExpr.Length -eq 0) {
-        return
-    }
-
-    $Char = $LocalExpr.Substring($LocalExpr.Length-1, 1)
-    if ($Char -in $Controls) {
-        $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-1)).TrimEnd()     # TrimEnd is important here for subsequent distinguishing of binary vs unary plus and minus operators
-        $Token = $Char
-#       Distinguishing binary vs unary plus and minus operators
-        if ($Char -in @("+", "-")) {
-            if (($NewExpr.Length -eq 0) -or ($NewExpr.Substring($NewExpr.Length-1, 1) -eq "(") -or ($NewExpr.Substring($NewExpr.Length-1, 1) -in $Operators.Keys)) {
-                if ($Char -eq "+") {
-                    $Token = "#"
-                }
-                if ($Char -eq "-") {
-                    $Token = "~"
+    while ($LocalExpr.Length -ne 0) {
+        $Char = $LocalExpr.Substring($LocalExpr.Length-1, 1)
+        if ($Char -in $Controls) {
+            $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-1)).TrimEnd()     # TrimEnd is important here for subsequent distinguishing of binary vs unary plus and minus operators
+            $Token = $Char
+    #       Distinguishing binary vs unary plus and minus operators
+            if ($Char -in @("+", "-")) {
+                if (($NewExpr.Length -eq 0) -or ($NewExpr.Substring($NewExpr.Length-1, 1) -eq "(") -or ($NewExpr.Substring($NewExpr.Length-1, 1) -in $Operators.Keys)) {
+                    if ($Char -eq "+") {
+                        $Token = "#"
+                    }
+                    if ($Char -eq "-") {
+                        $Token = "~"
+                    }
                 }
             }
+            fPushToStack -StackInstance $StackInstance -Value $Token | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
         }
-        fPushToStack -StackInstance $StackInstance -Value $Token | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
-    }
-    elseif ($Char -in $Numerics) {
-        [string]$NumericalToken = ""
-        for ($i = $LocalExpr.Length - 1; $i -ge 0; $i--) {
-            $Char = $LocalExpr.Substring($i, 1)
-            if ($Char -in $Numerics) {
-                $NumericalToken = $Char + $NumericalToken
+        elseif ($Char -in $Numerics) {
+            [string]$NumericalToken = ""
+            for ($i = $LocalExpr.Length - 1; $i -ge 0; $i--) {
+                $Char = $LocalExpr.Substring($i, 1)
+                if ($Char -in $Numerics) {
+                    $NumericalToken = $Char + $NumericalToken
+                }
+                else {
+                    break
+                }
             }
-            else {
-                break
+            $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-$NumericalToken.Length))     # It is important to calculate $NewExpr fisrt since we modify $NumericalToken further in the function
+            if ($NumericalToken.IndexOf(".") -ne $NumericalToken.LastIndexOf(".")) {
+                throw ("Number $NumericalToken is incorrect (contains more than one decimal separator)")
             }
+            if ($NumericalToken.Substring(0, 1) -eq ".") {
+                $NumericalToken = "0" + $NumericalToken
+            }
+            if ($NumericalToken.Substring($NumericalToken.Length-1, 1) -eq ".") {
+                $NumericalToken = $NumericalToken + "0"
+            }
+            fPushToStack -StackInstance $StackInstance -Value $NumericalToken | Out-Null
         }
-        $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-$NumericalToken.Length))     # It is important to calculate $NewExpr fisrt since we modify $NumericalToken further in the function
-        if ($NumericalToken.IndexOf(".") -ne $NumericalToken.LastIndexOf(".")) {
-            throw ("Number $NumericalToken is incorrect (contains more than one decimal separator)")
+        else {
+            throw ("Unexpected character '$Char' encountered at position " + [string]$LocalExpr.Length)
         }
-        if ($NumericalToken.Substring(0, 1) -eq ".") {
-            $NumericalToken = "0" + $NumericalToken
-        }
-        if ($NumericalToken.Substring($NumericalToken.Length-1, 1) -eq ".") {
-            $NumericalToken = $NumericalToken + "0"
-        }
-        fPushToStack -StackInstance $StackInstance -Value $NumericalToken | Out-Null
+        $LocalExpr = $NewExpr.TrimEnd()
     }
-    else {
-        throw ("Unexpected character '$Char' encountered at position " + [string]$Expr.Length)
-    }
-#   Calling the same function recursively after the last token has been peeled off from the expression to the stack
-    fTokenizeExpression -Expr $NewExpr -StackInstance $StackInstance
 }
 
 function fConvertToRpn {     # This function uses the shunting-yard algorithm by Edsger Dijkstra
