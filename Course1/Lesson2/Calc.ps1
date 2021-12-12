@@ -111,15 +111,29 @@ function fGetQueueCurrentLength {
 
 #***************************************
 
-$Operators = @{
-    "#" = @{"Operands" = [int]1; "Precedence" =[int]9};     # unary plus operstor
-    "~" = @{"Operands" = [int]1; "Precedence" =[int]9};     # unary minus operator
-    "+" = @{"Operands" = [int]2; "Precedence" =[int]3};
-    "-" = @{"Operands" = [int]2; "Precedence" =[int]3};
-    "*" = @{"Operands" = [int]2; "Precedence" =[int]6};
-    "/" = @{"Operands" = [int]2; "Precedence" =[int]6};
+# NOTE: When adding, MODIGYING, or removing an operator make sure the changes are reflected in all functions (3 places as of 12.12.2021)
+
+function fGetSupportedOperators {
+    param(
+        [Parameter(Mandatory=$false)][ValidateSet("Operators", "Controls", "Help")] [string]$Purpose = "Operators"
+    )
+    $Operators = @{
+        "#" = @{"Operands" = [int]1; "Precedence" =[int]9};     # unary plus operstor
+        "~" = @{"Operands" = [int]1; "Precedence" =[int]9};     # unary minus operator
+        "+" = @{"Operands" = [int]2; "Precedence" =[int]3};
+        "-" = @{"Operands" = [int]2; "Precedence" =[int]3};
+        "*" = @{"Operands" = [int]2; "Precedence" =[int]6};
+        "/" = @{"Operands" = [int]2; "Precedence" =[int]6};
+    }
+
+    [string[]]$Controls = @("(", ")") + $Operators.Keys
+
+    switch ($Purpose.ToLower()) {
+        "operators" {return $Operators}
+        "controls"  {return $Controls}
+        "help"      {return ("'+' (unary and binary), '-' (unary and binary), '*' and '/'")}
+    }
 }
-[string[]]$Controls = @("(", ")") + $Operators.Keys
 
 function fCalculateOperator {
     param (
@@ -140,13 +154,17 @@ function fCalculateOperator {
 
 #******************************************************************************
 
-[string[]]$Decimals = @(".", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+function fGetNumericChars {
+    return [string[]]@(".", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+}
 
 function fTokenizeExpression {
     param (
         [Parameter(Mandatory=$true)] [AllowEmptyString()] [string]$Expr,
         [Parameter(Mandatory=$true)] [object]$StackInstance
     )
+    $Controls = fGetSupportedOperators -Purpose "Controls"
+    $Numerics = fGetNumericChars
 
     $LocalExpr = $Expr.TrimEnd()     # The purpose of NOT doing TrimStart is to maintain character positions exactly the same as in the initial expression - to report the position of a wrong character correctly if required
     if ($LocalExpr.Length -eq 0) {
@@ -170,11 +188,11 @@ function fTokenizeExpression {
         }
         fPushToStack -StackInstance $StackInstance -Value $Token | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
     }
-    elseif ($Char -in $Decimals) {
+    elseif ($Char -in $Numerics) {
         [string]$NumericalToken = ""
         for ($i = $LocalExpr.Length - 1; $i -ge 0; $i--) {
             $Char = $LocalExpr.Substring($i, 1)
-            if ($Char -in $Decimals) {
+            if ($Char -in $Numerics) {
                 $NumericalToken = $Char + $NumericalToken
             }
             else {
@@ -209,12 +227,14 @@ function fConvertToRpn {     # This function uses the shunting-yard algorithm by
 
     $ServiceStack = fInitializeStack -Length $StackLength
     $OutputQueue = fInitializeQueue -Length $QueueLength
+    $Operators = fGetSupportedOperators -Purpose "Operators"
+    $Numerics = fGetNumericChars
 
     $TokenStack = fInitializeStack -Length $StackLength
     fTokenizeExpression -Expr $Expr -StackInstance $TokenStack
     while ((fGetStackCurrentLength -StackInstance $TokenStack) -ne 0) {
         $Token = fPopFromStack -StackInstance $TokenStack
-        if ($Token.Substring(0, 1) -in $Decimals) {
+        if ($Token.Substring(0, 1) -in $Numerics) {
             fPushToQueue -QueueInstance $OutputQueue -Value $Token | Out-Null
             continue
         }
@@ -276,6 +296,8 @@ function fCalculateRpnExpression {
         [Parameter(Mandatory=$true)] [int]$StackLength
     )
     $Stack = fInitializeStack -Length $StackLength
+    $Operators = fGetSupportedOperators -Purpose "Operators"
+
     $Tokens = $RpnExpr.Split(" ")
     for ($i = 0; $i -lt $Tokens.Count; $i++) {
         if ($Tokens[$i].Length -eq 0) {     # Skipping multiple spaces in the input string
@@ -302,7 +324,7 @@ $MaxNumberOfTokens = 1024
 
 if (-not $ConciseOutput) {
     Write-Host "`n*** Sample calculator (expression evaluator) program ***"
-    Write-Host "*** Supported operators: '+' (unary and binary), '-' (unary and binary), '*' and '/' ***"
+    Write-Host ("*** Supported operators: "+(fGetSupportedOperators -Purpose "Help")+" ***")
     Write-Host "*** Parentheses are supported ***`n"
 }
 
