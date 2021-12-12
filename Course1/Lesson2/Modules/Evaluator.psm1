@@ -27,15 +27,6 @@ function fTokenizeAndValidateExpression {
                 }
             }
             $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-$NumericalToken.Length))     # It is important to calculate $NewExpr fisrt since we modify $NumericalToken further in the function
-            if ($NumericalToken.IndexOf(".") -ne $NumericalToken.LastIndexOf(".")) {
-                throw ("Number $NumericalToken is incorrect (contains more than one decimal separator)")
-            }
-            if ($NumericalToken.Substring(0, 1) -eq ".") {
-                $NumericalToken = "0" + $NumericalToken
-            }
-            if ($NumericalToken.Substring($NumericalToken.Length-1, 1) -eq ".") {
-                $NumericalToken = $NumericalToken + "0"
-            }
             fPushToStack -StackInstance $TokenStack -Value $NumericalToken | Out-Null
             continue
         }
@@ -54,8 +45,9 @@ function fTokenizeAndValidateExpression {
     for ($i = 0; $i -lt $Tokens.Count; $i++) {
         $Tokens[$i] = fPopFromStack -StackInstance $TokenStack
     }
-    # Detecting unary '+' and '-' and replacing them with '#' and '~'
+    # Transforming tokens when required
     for ($i = 0; $i -lt $Tokens.Count; $i++) {
+        # Detecting unary '+' and '-' (those found either in the beginning of the expression or right after '(', '*' or '/') and replacing them with '#' and '~'
         if ($Tokens[$i] -in @("+", "-")) {
             if (($i -eq 0) -or ($Tokens[$i-1] -in @("(", "*", "/"))) {
                 if ($Tokens[$i] -eq "+") {
@@ -65,6 +57,20 @@ function fTokenizeAndValidateExpression {
                     $Tokens[$i] = "~"
                 }
             }
+            continue
+        }
+        # Checking and modifying numeric tokens (adding leading zero for those starting with a dot, and trailing zero for those ending with a dot)
+        if ($Tokens[$i].Substring(0, 1) -in $Numerics) {
+            if ($Tokens[$i].IndexOf(".") -ne $Tokens[$i].LastIndexOf(".")) {     # More than one decimal dot found in a numeric token
+                throw ("Number " + $Tokens[$i] + " is incorrect (contains more than one decimal separator)")
+            }
+            if ($Tokens[$i].Substring(0, 1) -eq ".") {
+                $Tokens[$i] = "0" + $Tokens[$i]
+            }
+            if ($Tokens[$i].Substring($Tokens[$i].Length-1, 1) -eq ".") {
+                $Tokens[$i] = $Tokens[$i] + "0"
+            }
+            continue
         }
     }
     # An expression cannot start with a closing parenthesis or a binary operator

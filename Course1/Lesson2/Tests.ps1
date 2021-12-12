@@ -1,10 +1,11 @@
 
 $Tests = @{
     "1+2" = [decimal]3;
-    "1 + 2*3" = [decimal]7;
+    "1 + 2*3 -0.1" = [decimal]6.9;
     "45.1 *2 - 1.20" = [decimal]89;
     "10 /3*3" = [decimal]10;
     "-((3+(10-7)*(-4)))" = [decimal]9;
+    "-.2 + 1." = [decimal]0.8;
 }
 
 foreach ($Expr in $Tests.Keys) {
