@@ -37,6 +37,7 @@ try {
 }
 catch {
     Write-Host -ForegroundColor Red "Error while parsing the expression: $_"
+    Write-Verbose ("*** Stack Trace ***`n" + $_.ScriptStackTrace)
     exit 1
 }
 
@@ -51,5 +52,6 @@ try {
 }
 catch {
     Write-Host -ForegroundColor Red "Error while calculating the expression: $_"
+    Write-Verbose ("*** Stack Trace ***`n" + $_.ScriptStackTrace)
     exit 2
 }

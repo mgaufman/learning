@@ -8,29 +8,13 @@ function fTokenizeExpression {
         [Parameter(Mandatory=$true)] [AllowEmptyString()] [string]$Expr,
         [Parameter(Mandatory=$true)] [object]$StackInstance
     )
-    $Controls = fGetSupportedOperators -Purpose "Controls"
+    $Operators = fGetSupportedOperators -Purpose "Operators"
     $Numerics = fGetNumericChars
 
-    $LocalExpr = $Expr.TrimEnd()     # The purpose of NOT doing TrimStart is to maintain character positions exactly the same as in the initial expression - to report the position of a wrong character correctly if required
-    while ($LocalExpr.Length -ne 0) {
+    $NewExpr = $Expr
+    while (($LocalExpr = $NewExpr.TrimEnd()).Length -ne 0) {     # The purpose of doing TrimEnd only (and not full Trim) is to maintain character positions exactly the same as in the initial expression - to report the position of a wrong character correctly if required
         $Char = $LocalExpr.Substring($LocalExpr.Length-1, 1)
-        if ($Char -in $Controls) {
-            $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-1)).TrimEnd()     # TrimEnd is important here for subsequent distinguishing of binary vs unary plus and minus operators
-            $Token = $Char
-    #       Distinguishing binary vs unary plus and minus operators
-            if ($Char -in @("+", "-")) {
-                if (($NewExpr.Length -eq 0) -or ($NewExpr.Substring($NewExpr.Length-1, 1) -eq "(") -or ($NewExpr.Substring($NewExpr.Length-1, 1) -in $Operators.Keys)) {
-                    if ($Char -eq "+") {
-                        $Token = "#"
-                    }
-                    if ($Char -eq "-") {
-                        $Token = "~"
-                    }
-                }
-            }
-            fPushToStack -StackInstance $StackInstance -Value $Token | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
-        }
-        elseif ($Char -in $Numerics) {
+        if ($Char -in $Numerics) {
             [string]$NumericalToken = ""
             for ($i = $LocalExpr.Length - 1; $i -ge 0; $i--) {
                 $Char = $LocalExpr.Substring($i, 1)
@@ -52,11 +36,30 @@ function fTokenizeExpression {
                 $NumericalToken = $NumericalToken + "0"
             }
             fPushToStack -StackInstance $StackInstance -Value $NumericalToken | Out-Null
+            continue
         }
-        else {
-            throw ("Unexpected character '$Char' encountered at position " + [string]$LocalExpr.Length)
+        if (($Char -in $Operators.Keys) -or ($Char -in @("(", ")"))) {
+            $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-1)).TrimEnd()     # TrimEnd is important here for subsequent distinguishing of binary vs unary plus and minus operators
+            $Token = $Char
+#           Block: distinguishing binary vs unary plus and minus operators - they are only expected in the beginning of the line or after the opening parenthesis
+            if ($Char -in @("+", "-")) {
+                if (($NewExpr.Length -eq 0) -or ($NewExpr.Substring($NewExpr.Length-1, 1) -eq "(")) {
+                    if ($Char -eq "+") {
+                        $Token = "#"
+                    }
+                    if ($Char -eq "-") {
+                        $Token = "~"
+                    }
+                }
+                elseif ($NewExpr.Substring($NewExpr.Length-1, 1) -in $Operators.Keys) {
+                    throw ("Unexpected operator '$Char' at position "+ $LocalExpr.Length)
+                }
+            }
+#           End of block
+            fPushToStack -StackInstance $StackInstance -Value $Token | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
+            continue
         }
-        $LocalExpr = $NewExpr.TrimEnd()
+        throw ("Unexpected character '$Char' encountered at position " + $LocalExpr.Length)
     }
 }
 
@@ -66,7 +69,6 @@ function fConvertToRpn {     # This function uses the shunting-yard algorithm by
         [Parameter(Mandatory=$true)] [int]$StackLength,
         [Parameter(Mandatory=$true)] [int]$QueueLength
     )
-
     $ServiceStack = fInitializeStack -Length $StackLength
     $OutputQueue = fInitializeQueue -Length $QueueLength
     $Operators = fGetSupportedOperators -Purpose "Operators"
@@ -148,7 +150,12 @@ function fCalculateRpnExpression {
         if ($Tokens[$i] -in $Operators.Keys) {
             $Arguments = [decimal[]]@(0)*$Operators[$Tokens[$i]]["Operands"]
             for ($ArgNumber = $Operators[$Tokens[$i]]["Operands"]-1; $ArgNumber -ge 0; $ArgNumber--) {
-                $Arguments[$ArgNumber] = [decimal](fPopFromStack -StackInstance $Stack)
+                try {
+                    $Arguments[$ArgNumber] = [decimal](fPopFromStack -StackInstance $Stack)
+                }
+                catch {
+                    throw ("Insufficient number of arguments provided for the operator '" + $Tokens[$i] + "'")
+                }
             }
             fPushToStack -StackInstance $Stack -Value (fCalculateOperator -Operator $Tokens[$i] -Operands $Arguments) | Out-Null
         }
@@ -159,7 +166,6 @@ function fCalculateRpnExpression {
     return (fPopFromStack -StackInstance $Stack)
 }
 
-Export-ModuleMember -Function fGetNumericChars
 Export-ModuleMember -Function fTokenizeExpression
 Export-ModuleMember -Function fConvertToRpn
 Export-ModuleMember -Function fCalculateRpnExpression

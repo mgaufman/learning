@@ -3,7 +3,7 @@
 
 function fGetSupportedOperators {
     param (
-        [Parameter(Mandatory=$false)][ValidateSet("Operators", "Controls", "Help")] [string]$Purpose = "Operators"
+        [Parameter(Mandatory=$false)][ValidateSet("Operators", "Help")] [string]$Purpose = "Operators"
     )
     $Operators = @{
         "#" = @{"Operands" = [int]1; "Precedence" =[int]9};     # unary plus operstor
@@ -13,12 +13,8 @@ function fGetSupportedOperators {
         "*" = @{"Operands" = [int]2; "Precedence" =[int]6};
         "/" = @{"Operands" = [int]2; "Precedence" =[int]6};
     }
-
-    [string[]]$Controls = @("(", ")") + $Operators.Keys
-
     switch ($Purpose.ToLower()) {
         "operators" {return $Operators}
-        "controls"  {return $Controls}
         "help"      {return ("'+' (unary and binary), '-' (unary and binary), '*' and '/'")}
     }
 }
