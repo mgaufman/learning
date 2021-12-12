@@ -3,11 +3,12 @@ function fGetNumericChars {
     return [string[]]@(".", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
 }
 
-function fTokenizeExpression {
+function fTokenizeAndValidateExpression {
     param (
         [Parameter(Mandatory=$true)] [AllowEmptyString()] [string]$Expr,
-        [Parameter(Mandatory=$true)] [object]$StackInstance
+        [Parameter(Mandatory=$true)] [int]$MaxNumberOfTokens
     )
+    $TokenStack = fInitializeStack -Length $MaxNumberOfTokens
     $Operators = fGetSupportedOperators -Purpose "Operators"
     $Numerics = fGetNumericChars
 
@@ -35,47 +36,91 @@ function fTokenizeExpression {
             if ($NumericalToken.Substring($NumericalToken.Length-1, 1) -eq ".") {
                 $NumericalToken = $NumericalToken + "0"
             }
-            fPushToStack -StackInstance $StackInstance -Value $NumericalToken | Out-Null
+            fPushToStack -StackInstance $TokenStack -Value $NumericalToken | Out-Null
             continue
         }
         if (($Char -in $Operators.Keys) -or ($Char -in @("(", ")"))) {
-            $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-1)).TrimEnd()     # TrimEnd is important here for subsequent distinguishing of binary vs unary plus and minus operators
-            $Token = $Char
-#           Block: distinguishing binary vs unary plus and minus operators - they are only expected in the beginning of the line or after the opening parenthesis
-            if ($Char -in @("+", "-")) {
-                if (($NewExpr.Length -eq 0) -or ($NewExpr.Substring($NewExpr.Length-1, 1) -eq "(")) {
-                    if ($Char -eq "+") {
-                        $Token = "#"
-                    }
-                    if ($Char -eq "-") {
-                        $Token = "~"
-                    }
-                }
-                elseif ($NewExpr.Substring($NewExpr.Length-1, 1) -in $Operators.Keys) {
-                    throw ("Unexpected operator '$Char' at position "+ $LocalExpr.Length)
-                }
-            }
-#           End of block
-            fPushToStack -StackInstance $StackInstance -Value $Token | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
+            $NewExpr = ($LocalExpr.Substring(0, $LocalExpr.Length-1))
+            fPushToStack -StackInstance $TokenStack -Value $Char | Out-Null
             continue
         }
         throw ("Unexpected character '$Char' encountered at position " + $LocalExpr.Length)
     }
+#   Tokens transformation & validation
+    $UnaryOps = $Operators.Keys | Where-Object {$Operators[$_]["Operands"] -eq 1}
+    $BinaryOps = $Operators.Keys | Where-Object {$Operators[$_]["Operands"] -eq 2}
+    # Transforming tokens stack to an array
+    $Tokens = @($null)*$(fGetStackCurrentLength -StackInstance $TokenStack)
+    for ($i = 0; $i -lt $Tokens.Count; $i++) {
+        $Tokens[$i] = fPopFromStack -StackInstance $TokenStack
+    }
+    # Detecting unary '+' and '-' and replacing them with '#' and '~'
+    for ($i = 0; $i -lt $Tokens.Count; $i++) {
+        if ($Tokens[$i] -in @("+", "-")) {
+            if (($i -eq 0) -or ($Tokens[$i-1] -in @("(", "*", "/"))) {
+                if ($Tokens[$i] -eq "+") {
+                    $Tokens[$i] = "#"
+                }
+                if ($Tokens[$i] -eq "-") {
+                    $Tokens[$i] = "~"
+                }
+            }
+        }
+    }
+    # An expression cannot start with a closing parenthesis or a binary operator
+    if ($Tokens[0] -eq ")" -or ($Tokens[0] -in $BinaryOps)) {
+        throw ("An expression cannot start with a closing parenthesis or a binary operator")
+    }
+    # An expression cannot end with an opening parenthesis or an operator
+    if ($Tokens[-1] -eq "(" -or ($Tokens[-1] -in $Operators.Keys)) {
+        throw ("An expression cannot end with an opening parenthesis or an operator")
+    }
+    for ($i = 0; $i -lt $Tokens.Count; $i++) {
+        # Adjacent binacy operators are not allowed
+        if (($i -ne 0) -and ($Tokens[$i-1] -in $BinaryOps) -and ($Tokens[$i] -in $BinaryOps)) {
+            throw ("Two binary operators cannot be adjacent to each other (a parenthesis may be missing)")
+        }
+        # Adjacent numbers are not allowed
+        if (($i -ne 0) -and ($Tokens[$i-1].Substring(0, 1) -in $Numerics) -and ($Tokens[$i].Substring(0, 1) -in $Numerics)) {
+            throw ("Two numbers cannot be adjacent to each other (an operator may be missing)")
+        }
+        # Not allowed positions for an opening parenthesis
+        if ($Tokens[$i] -eq "(") {
+            if (($i -ne $Tokens.Count-1) -and (($Tokens[$i+1] -eq ")") -or ($Tokens[$i+1] -in $BinaryOps))) {
+                throw ("An opening parenthesis cannot be followed by a closing parenthesis or a binary operator")
+            }
+            if (($i -ne 0) -and (($Tokens[$i-1] -eq ")") -or ($Tokens[$i-1].Substring(0, 1) -in $Numerics))) {
+                throw ("An opening parenthesis cannot be preceeded by a closing parenthesis or a number (an operator may be missing)")
+            }
+        }
+        # Not allowed positions for a closing parenthesis
+        if ($Tokens[$i] -eq ")") {
+            if (($i -ne $Tokens.Count-1) -and (($Tokens[$i+1] -eq "(") -or ($Tokens[$i+1] -in $UnaryOps) -or ($Tokens[$i+1].Substring(0, 1) -in $Numerics))) {
+                throw ("A closing parenthesis cannot be followed by an opening parenthesis, an unary operator or a number")
+            }
+            if (($i -ne 0) -and (($Tokens[$i-1] -eq "(") -or ($Tokens[$i-1] -in $Operators.Keys))) {
+                throw ("A closing parenthesis cannot be preceeded by an opening parenthesis or an operator")
+            }
+        }
+    }
+#   Creating output stack (backwards conversion from the array)
+    for ($i = $Tokens.Count-1; $i -ge 0; $i--) {
+        fPushToStack -StackInstance $TokenStack -Value $Tokens[$i] | Out-Null
+    }
+    return $TokenStack
 }
 
 function fConvertToRpn {     # This function uses the shunting-yard algorithm by Edsger Dijkstra
     param (
         [Parameter(Mandatory=$true)] [string]$Expr,
-        [Parameter(Mandatory=$true)] [int]$StackLength,
-        [Parameter(Mandatory=$true)] [int]$QueueLength
+        [Parameter(Mandatory=$true)] [int]$MaxNumberOfTokens
     )
-    $ServiceStack = fInitializeStack -Length $StackLength
-    $OutputQueue = fInitializeQueue -Length $QueueLength
+    $ServiceStack = fInitializeStack -Length $MaxNumberOfTokens
+    $OutputQueue = fInitializeQueue -Length $MaxNumberOfTokens
     $Operators = fGetSupportedOperators -Purpose "Operators"
     $Numerics = fGetNumericChars
 
-    $TokenStack = fInitializeStack -Length $StackLength
-    fTokenizeExpression -Expr $Expr -StackInstance $TokenStack
+    $TokenStack = fTokenizeAndValidateExpression -Expr $Expr -MaxNumberOfTokens $MaxNumberOfTokens
     while ((fGetStackCurrentLength -StackInstance $TokenStack) -ne 0) {
         $Token = fPopFromStack -StackInstance $TokenStack
         if ($Token.Substring(0, 1) -in $Numerics) {
@@ -137,9 +182,9 @@ function fConvertToRpn {     # This function uses the shunting-yard algorithm by
 function fCalculateRpnExpression {
     param (
         [Parameter(Mandatory=$true)] [string]$RpnExpr,
-        [Parameter(Mandatory=$true)] [int]$StackLength
+        [Parameter(Mandatory=$true)] [int]$MaxNumberOfTokens
     )
-    $Stack = fInitializeStack -Length $StackLength
+    $Stack = fInitializeStack -Length $MaxNumberOfTokens
     $Operators = fGetSupportedOperators -Purpose "Operators"
 
     $Tokens = $RpnExpr.Split(" ")
@@ -166,6 +211,6 @@ function fCalculateRpnExpression {
     return (fPopFromStack -StackInstance $Stack)
 }
 
-Export-ModuleMember -Function fTokenizeExpression
+Export-ModuleMember -Function fTokenizeAndValidateExpression
 Export-ModuleMember -Function fConvertToRpn
 Export-ModuleMember -Function fCalculateRpnExpression

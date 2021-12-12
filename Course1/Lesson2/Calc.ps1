@@ -30,7 +30,7 @@ if (-not $ConciseOutput) {
 }
 
 try {
-    $RpnExpression = fConvertToRpn -Expr $Expression -StackLength $MaxNumberOfTokens -QueueLength $MaxNumberOfTokens
+    $RpnExpression = fConvertToRpn -Expr $Expression -MaxNumberOfTokens $MaxNumberOfTokens
     if (-not $ConciseOutput) {
         Write-Host "The same expression in the RPN notation ('#' stands for unary '+', '~' stands for unary '-'): $RpnExpression"
     }
@@ -42,7 +42,7 @@ catch {
 }
 
 try {
-    $CalculationResult = fCalculateRpnExpression -RpnExpr $RpnExpression -StackLength $MaxNumberOfTokens
+    $CalculationResult = fCalculateRpnExpression -RpnExpr $RpnExpression -MaxNumberOfTokens $MaxNumberOfTokens
     if (-not $ConciseOutput) {
         Write-Host "This expression evaluates to $CalculationResult`n"
     }
