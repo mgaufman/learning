@@ -6,12 +6,12 @@ function fGetSupportedOperators {
         [Parameter(Mandatory=$false)][ValidateSet("Operators", "Help")] [string]$Purpose = "Operators"
     )
     $Operators = @{
-        "#" = @{"Operands" = [int]1; "Precedence" =[int]9};     # unary plus operstor
-        "~" = @{"Operands" = [int]1; "Precedence" =[int]9};     # unary minus operator
-        "+" = @{"Operands" = [int]2; "Precedence" =[int]3};
-        "-" = @{"Operands" = [int]2; "Precedence" =[int]3};
-        "*" = @{"Operands" = [int]2; "Precedence" =[int]6};
-        "/" = @{"Operands" = [int]2; "Precedence" =[int]6};
+        "#" = @{"Operands" = [int]1; "Precedence" = [int]9};     # unary plus operstor
+        "~" = @{"Operands" = [int]1; "Precedence" = [int]9};     # unary minus operator
+        "+" = @{"Operands" = [int]2; "Precedence" = [int]3};
+        "-" = @{"Operands" = [int]2; "Precedence" = [int]3};
+        "*" = @{"Operands" = [int]2; "Precedence" = [int]6};
+        "/" = @{"Operands" = [int]2; "Precedence" = [int]6};
     }
     switch ($Purpose.ToLower()) {
         "operators" {return $Operators}
