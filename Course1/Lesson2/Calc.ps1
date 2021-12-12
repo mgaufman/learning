@@ -1,4 +1,6 @@
 
+# NOTE: leverage the built-in -Verbose switch to output the exception stack trace if required
+
 param (
     [Parameter(Mandatory=$false)] [string]$Expression = "",
     [Parameter(Mandatory=$false)] [int]$MaxNumberOfTokens = 1024,     # maximum number of tokens (numbers, operators, parentheses) allowed in the expression
@@ -31,7 +33,7 @@ if (-not $ConciseOutput) {
     Write-Host "Original expression: $Expression"
 }
 
-# Converting to RPN and displaying the result
+# Converting to the RPN and displaying the result
 try {
     $RpnExpression = fConvertToRpn -Expr $Expression -MaxNumberOfTokens $MaxNumberOfTokens
     if (-not $ConciseOutput) {

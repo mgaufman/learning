@@ -1,6 +1,6 @@
 #******************************************************************************
 #
-#     Function fInitializeQueue: creates an empty queue of a given length
+#     Function fInitializeQueue: creates an empty queue of the given length
 #
 #******************************************************************************
 
@@ -40,7 +40,7 @@ function fPushToQueue {
 
 #******************************************************************************
 #
-#     Function fPullFromQueue: removes an entry from the queue and return it to the caller
+#     Function fPullFromQueue: removes an entry from the queue and returns it to the caller
 #
 #******************************************************************************
 

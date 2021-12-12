@@ -96,24 +96,24 @@ function fTokenizeAndValidateExpression {
             continue
         }
     }
-    # An expression cannot start with a closing parenthesis or a binary operator
+    # Validation Check: An expression cannot start with a closing parenthesis or a binary operator
     if ($Tokens[0] -eq ")" -or ($Tokens[0] -in $BinaryOps)) {
         throw ("An expression cannot start with a closing parenthesis or a binary operator")
     }
-    # An expression cannot end with an opening parenthesis or an operator
+    # Validation Check: An expression cannot end with an opening parenthesis or an operator
     if ($Tokens[-1] -eq "(" -or ($Tokens[-1] -in $Operators.Keys)) {
         throw ("An expression cannot end with an opening parenthesis or an operator")
     }
     for ($i = 0; $i -lt $Tokens.Count; $i++) {
-        # Adjacent binacy operators are not allowed
+        # Validation Check: Adjacent binacy operators are not allowed
         if (($i -ne 0) -and ($Tokens[$i-1] -in $BinaryOps) -and ($Tokens[$i] -in $BinaryOps)) {
             throw ("Two binary operators cannot be adjacent to each other (a parenthesis or an operand may be missing)")
         }
-        # Adjacent numbers are not allowed
+        # Validation Check: Adjacent numbers are not allowed
         if (($i -ne 0) -and ($Tokens[$i-1].Substring(0, 1) -in $Numerics) -and ($Tokens[$i].Substring(0, 1) -in $Numerics)) {
             throw ("Two numbers cannot be adjacent to each other (an operator may be missing)")
         }
-        # Not allowed positions for an opening parenthesis
+        # Validation Check: Not allowed positions for an opening parenthesis
         if ($Tokens[$i] -eq "(") {
             if (($i -ne $Tokens.Count-1) -and (($Tokens[$i+1] -eq ")") -or ($Tokens[$i+1] -in $BinaryOps))) {
                 throw ("An opening parenthesis cannot be followed by a closing parenthesis or a binary operator")
@@ -122,7 +122,7 @@ function fTokenizeAndValidateExpression {
                 throw ("An opening parenthesis cannot be preceeded by a closing parenthesis or a number (an operator may be missing)")
             }
         }
-        # Not allowed positions for a closing parenthesis
+        # Validation Check: Not allowed positions for a closing parenthesis
         if ($Tokens[$i] -eq ")") {
             if (($i -ne $Tokens.Count-1) -and (($Tokens[$i+1] -eq "(") -or ($Tokens[$i+1] -in $UnaryOps) -or ($Tokens[$i+1].Substring(0, 1) -in $Numerics))) {
                 throw ("A closing parenthesis cannot be followed by an opening parenthesis, an unary operator or a number")
@@ -132,7 +132,7 @@ function fTokenizeAndValidateExpression {
             }
         }
     }
-#   Creating the output stack (backwards copying from the array)
+#   Creating the output stack (backward copying from the array)
     for ($i = $Tokens.Count-1; $i -ge 0; $i--) {
         fPushToStack -StackInstance $TokenStack -Value $Tokens[$i] | Out-Null
     }
@@ -141,9 +141,9 @@ function fTokenizeAndValidateExpression {
 
 #******************************************************************************
 #
-#     Function fConvertToRpn: converts an expression from an infix notation to the RPN notation
+#     Function fConvertToRpn: converts an expression from the infix notation to the reverse Polish notation (RPN)
 #     NOTES:
-#         This function leverages the shunting-yard algorithm by Edsger Dijkstra
+#         This function leverages the shunting-yard algorithm by Edsger Dijkstra (https://en.wikipedia.org/wiki/Shunting-yard_algorithm)
 #         This function relies on the fTokenizeAndValidateExpression function to perform expression and tokens validation
 #
 #******************************************************************************
@@ -160,7 +160,7 @@ function fConvertToRpn {
 
 #   Parsing and validating the input expression
     $TokenStack = fTokenizeAndValidateExpression -Expr $Expr -MaxNumberOfTokens $MaxNumberOfTokens
-#   Processing the tokens in the expression
+#   Processing tokens in the expression
     while ((fGetStackCurrentLength -StackInstance $TokenStack) -ne 0) {
         $Token = fPopFromStack -StackInstance $TokenStack
         if ($Token.Substring(0, 1) -in $Numerics) {
@@ -202,7 +202,7 @@ function fConvertToRpn {
             continue
         }
     }
-#   Processing the remaining tokens in the stack
+#   Processing remaining tokens in the stack
     while ((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) {
         $TopStackValue = fPopFromStack -StackInstance $ServiceStack
         if ($TopStackValue -eq "(") {
@@ -210,7 +210,7 @@ function fConvertToRpn {
         }
         fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
     }
-#   Building the resulting RPN string out of the output queue (tokens get separated by spaces)
+#   Building the resulting RPN string from the output queue (tokens get separated by spaces)
     [string]$RpnExpr = ""
     for ($i = (fGetQueueCurrentLength -QueueInstance $OutputQueue)-1; $i -ge 0; $i--) {
         $RpnExpr = $RpnExpr + [string](fPullFromQueue -QueueInstance $OutputQueue)
@@ -223,7 +223,7 @@ function fConvertToRpn {
 
 #******************************************************************************
 #
-#     Function fCalculateRpnExpression: performs stack-based evaluation of an expression in the RPN notation
+#     Function fCalculateRpnExpression: performs stack-based evaluation of an expression in the reverse Polish notation
 #     NOTES:
 #         Input expression must consist of tokens separated by spaces (all extra spaces are discarded)
 #         This function does not perform expression and tokens validation (should be done prior to calling it)

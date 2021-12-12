@@ -1,6 +1,6 @@
 #******************************************************************************
 #
-#     Function fInitializeStack: creates an empty stack of a given length
+#     Function fInitializeStack: creates an empty stack of the given length
 #
 #******************************************************************************
 
@@ -19,6 +19,7 @@ function fInitializeStack {
 #     Function fPushToStack: pushes a new entry to the stack
 #
 #******************************************************************************
+
 function fPushToStack {
     param (
         [Parameter(Mandatory=$true)] [object]$StackInstance,
@@ -33,7 +34,7 @@ function fPushToStack {
 
 #******************************************************************************
 #
-#     Function fPopFromStack: removes an entry from the stack and return it to the caller
+#     Function fPopFromStack: removes an entry from the stack and returns it to the caller
 #
 #******************************************************************************
 
@@ -50,7 +51,7 @@ function fPopFromStack {
 
 #******************************************************************************
 #
-#     Function fPeekFromStack: returns the top entry of the stack but does not remove it
+#     Function fPeekFromStack: returns the top entry from the stack but does not remove it
 #
 #******************************************************************************
 
