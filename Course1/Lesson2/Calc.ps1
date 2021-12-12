@@ -37,7 +37,7 @@ if (-not $ConciseOutput) {
 try {
     $RpnExpression = fConvertToRpn -Expr $Expression -MaxNumberOfTokens $MaxNumberOfTokens
     if (-not $ConciseOutput) {
-        Write-Host "The same expression in the RPN notation ('#' stands for unary '+', '~' stands for unary '-'): $RpnExpression"
+        Write-Host "The same expression in the reverse Polish notation ('#' stands for unary '+', '~' stands for unary '-'): $RpnExpression"
     }
 }
 catch {
