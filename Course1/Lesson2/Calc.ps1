@@ -1,6 +1,7 @@
 
 param(
-    [Parameter(Mandatory=$false)] [string]$Expression = ""
+    [Parameter(Mandatory=$false)] [string]$Expression = "",
+    [Parameter(Mandatory=$false)] [switch]$ConciseOutput = $false     # if $true the script will output the calculation result only (useful for automated testing)
 )
 
 #******************************************************************************
@@ -111,8 +112,8 @@ function fGetQueueCurrentLength {
 #***************************************
 
 $Operators = @{
-    "#" = @{"Operands" = [int]1; "Precedence" =[int]9}; # unary plus operstor
-    "~" = @{"Operands" = [int]1; "Precedence" =[int]9}; # unary minus operator
+    "#" = @{"Operands" = [int]1; "Precedence" =[int]9};     # unary plus operstor
+    "~" = @{"Operands" = [int]1; "Precedence" =[int]9};     # unary minus operator
     "+" = @{"Operands" = [int]2; "Precedence" =[int]3};
     "-" = @{"Operands" = [int]2; "Precedence" =[int]3};
     "*" = @{"Operands" = [int]2; "Precedence" =[int]6};
@@ -193,13 +194,13 @@ function fTokenizeExpression {
         fPushToStack -StackInstance $StackInstance -Value $NumericalToken | Out-Null
     }
     else {
-        throw ("Unexpected character ($Char) encountered at position " + [string]$Expr.Length)
+        throw ("Unexpected character '$Char' encountered at position " + [string]$Expr.Length)
     }
 #   Calling the same function recursively after the last token has been peeled off from the expression to the stack
     fTokenizeExpression -Expr $NewExpr -StackInstance $StackInstance
 }
 
-function fConvertToRpn {
+function fConvertToRpn {     # This function uses the shunting-yard algorithm by Edsger Dijkstra
     param (
         [Parameter(Mandatory=$true)] [string]$Expr,
         [Parameter(Mandatory=$true)] [int]$StackLength,
@@ -259,9 +260,6 @@ function fConvertToRpn {
         }
         fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
     }
-    #STUB - REMOVE WHEN IMPLEMENTED
-    $RpnExpr = $Expr
-    #STUB - REMOVE WHEN IMPLEMENTED
     [string]$RpnExpr = ""
     for ($i = (fGetQueueCurrentLength -QueueInstance $OutputQueue)-1; $i -ge 0; $i--) {
         $RpnExpr = $RpnExpr + [string](fPullFromQueue -QueueInstance $OutputQueue)
@@ -300,11 +298,13 @@ function fCalculateRpnExpression {
 #******************************************************************************
 
 $ErrorActionPreference="Stop"
-$MaxNumberOfTokens = 16
+$MaxNumberOfTokens = 1024
 
-Write-Host "`n*** Sample calculator (expression evaluator) program ***"
-Write-Host "*** Supported operators: '+' (unary and binary), '-' (unary and binary), '*' and '/' ***"
-Write-Host "*** Parentheses are supported ***`n"
+if (-not $ConciseOutput) {
+    Write-Host "`n*** Sample calculator (expression evaluator) program ***"
+    Write-Host "*** Supported operators: '+' (unary and binary), '-' (unary and binary), '*' and '/' ***"
+    Write-Host "*** Parentheses are supported ***`n"
+}
 
 while ($Expression.Trim().Length -eq 0) {
     $Expression = Read-Host -Prompt "Please enter the expression you want me to calculate (use dot as a decimal separator; type 'exit' to quit)"
@@ -313,10 +313,31 @@ while ($Expression.Trim().Length -eq 0) {
         exit
     }
 }
-Write-Host "Original expression: $Expression"
+if (-not $ConciseOutput) {
+    Write-Host "Original expression: $Expression"
+}
 
-$RpnExpression = fConvertToRpn -Expr $Expression -StackLength $MaxNumberOfTokens -QueueLength $MaxNumberOfTokens
-Write-Host "The same expression in the RPN notation: $RpnExpression"
+try {
+    $RpnExpression = fConvertToRpn -Expr $Expression -StackLength $MaxNumberOfTokens -QueueLength $MaxNumberOfTokens
+}
+catch {
+    Write-Host -ForegroundColor Red "Error while parsing the expression: $_"
+    exit 1
+}
+if (-not $ConciseOutput) {
+    Write-Host "The same expression in the RPN notation ('#' stands for unary '+', '~' stands for unary '-'): $RpnExpression"
+}
 
-$CalculationResult = fCalculateRpnExpression -RpnExpr $RpnExpression -StackLength $MaxNumberOfTokens
-Write-Host "This expression evaluates to $CalculationResult`n"
+try {
+    $CalculationResult = fCalculateRpnExpression -RpnExpr $RpnExpression -StackLength $MaxNumberOfTokens
+}
+catch {
+    Write-Host -ForegroundColor Red "Error while calculating the expression: $_"
+    exit 2
+}
+if (-not $ConciseOutput) {
+    Write-Host "This expression evaluates to $CalculationResult`n"
+}
+else {
+    Write-Output $CalculationResult
+}
