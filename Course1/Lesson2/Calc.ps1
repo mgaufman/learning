@@ -1,5 +1,5 @@
 
-param(
+param (
     [Parameter(Mandatory=$false)] [string]$Expression = "",
     [Parameter(Mandatory=$false)] [switch]$ConciseOutput = $false     # if $true the script will output the calculation result only (useful for automated testing)
 )
@@ -17,7 +17,7 @@ function fInitializeStack {
 }
 
 function fPushToStack {
-    param(
+    param (
         [Parameter(Mandatory=$true)] [object]$StackInstance,
         [Parameter(Mandatory=$true)] $Value
     )
@@ -29,7 +29,7 @@ function fPushToStack {
 }
 
 function fPopFromStack {
-    param(
+    param (
         [Parameter(Mandatory=$true)] [object]$StackInstance
     )
     if ($StackInstance["IndexOfNext"] -eq 0) {
@@ -40,7 +40,7 @@ function fPopFromStack {
 }
 
 function fPeekFromStack {
-    param(
+    param (
         [Parameter(Mandatory=$true)] [object]$StackInstance
     )
     if ($StackInstance["IndexOfNext"] -eq 0) {
@@ -50,7 +50,7 @@ function fPeekFromStack {
 }
 
 function fGetStackCurrentLength {
-    param(
+    param (
         [Parameter(Mandatory=$true)] [object]$StackInstance
     )
     return $StackInstance["IndexOfNext"]
@@ -71,7 +71,7 @@ function fInitializeQueue {
 }
 
 function fPushToQueue {
-    param(
+    param (
         [Parameter(Mandatory=$true)] [object]$QueueInstance,
         [Parameter(Mandatory=$true)] $Value
     )
@@ -87,7 +87,7 @@ function fPushToQueue {
 }
 
 function fPullFromQueue {
-    param(
+    param (
         [Parameter(Mandatory=$true)] [object]$QueueInstance
     )
     if ($QueueInstance["CurrentLength"] -eq 0) {
@@ -103,7 +103,7 @@ function fPullFromQueue {
 }
 
 function fGetQueueCurrentLength {
-    param(
+    param (
         [Parameter(Mandatory=$true)] [object]$QueueInstance
     )
     return $QueueInstance["CurrentLength"]
@@ -114,7 +114,7 @@ function fGetQueueCurrentLength {
 # NOTE: When adding, MODIGYING, or removing an operator make sure the changes are reflected in all functions (3 places as of 12.12.2021)
 
 function fGetSupportedOperators {
-    param(
+    param (
         [Parameter(Mandatory=$false)][ValidateSet("Operators", "Controls", "Help")] [string]$Purpose = "Operators"
     )
     $Operators = @{
