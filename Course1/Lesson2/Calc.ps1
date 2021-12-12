@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory=$false)] [string]$Expression = ""
 )
 
-#***************************************
+#******************************************************************************
 
 function fInitializeStack {
     param (
@@ -55,7 +55,7 @@ function fGetStackCurrentLength {
     return $StackInstance["IndexOfNext"]
 }
 
-#***************************************
+#******************************************************************************
 
 function fInitializeQueue {
     param (
@@ -137,9 +137,9 @@ function fCalculateOperator {
     return $Result
 }
 
-#***************************************
+#******************************************************************************
 
-[string[]]$Decimals = @(".", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+[string[]]$Decimals = @(".", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
 
 function fTokenizeExpression {
     param (
@@ -190,7 +190,7 @@ function fTokenizeExpression {
         if ($NumericalToken.Substring($NumericalToken.Length-1, 1) -eq ".") {
             $NumericalToken = $NumericalToken + "0"
         }
-        fPushToStack -StackInstance $StackInstance -Value $NumericalToken | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
+        fPushToStack -StackInstance $StackInstance -Value $NumericalToken | Out-Null
     }
     else {
         throw ("Unexpected character ($Char) encountered at position " + [string]$Expr.Length)
@@ -220,7 +220,7 @@ function fConvertToRpn {
         if ($Token -in $Operators.Keys) {
             while ((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) {
                 $TopStackValue = fPeekFromStack -StackInstance $ServiceStack
-                if (($TopStackValue -in $Operators.Keys) -and ($Operators[$TopStackValue]["Precedence"] -ge $Operators[$TopStackValue]["Precedence"])) {
+                if (($TopStackValue -in $Operators.Keys) -and ($Operators[$TopStackValue]["Precedence"] -ge $Operators[$Token]["Precedence"])) {
                     $TopStackValue = fPopFromStack -StackInstance $ServiceStack
                     fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
                 }
@@ -236,24 +236,27 @@ function fConvertToRpn {
             continue
         }
         if ($Token -eq ")") {
-            while ((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) {
-                $TopStackValue = fPeekFromStack -StackInstance $ServiceStack
+            [bool]$OpeningBracketFound = $false
+            while (((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) -and (-not $OpeningBracketFound)) {
+                $TopStackValue = fPopFromStack -StackInstance $ServiceStack
                 if ($TopStackValue -ne "(") {
-                    $TopStackValue = fPopFromStack -StackInstance $ServiceStack
                     fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
                 }
                 else {
-                    $TopStackValue = fPopFromStack -StackInstance $ServiceStack
-                    break
-# ДОБАВИТЬ ОБРАБОТКУ: Если стек закончился до того, как был встречен токен открывающая скобка, то в выражении пропущена скобка.
+                    $OpeningBracketFound = $true
                 }
+            }
+            if (-not $OpeningBracketFound) {
+                throw ("A closing bracket encountered without a matching opening one")
             }
             continue
         }
     }
     while ((fGetStackCurrentLength -StackInstance $ServiceStack) -ne 0) {
         $TopStackValue = fPopFromStack -StackInstance $ServiceStack
-# ДОБАВИТЬ ОБРАБОТКУ: Если токен оператор на вершине стека — открывающая скобка, то в выражении пропущена скобка
+        if ($TopStackValue -eq "(") {
+            throw ("An opening bracket encountered without a matching closing one")
+        }
         fPushToQueue -QueueInstance $OutputQueue -Value $TopStackValue | Out-Null
     }
     #STUB - REMOVE WHEN IMPLEMENTED
@@ -285,33 +288,35 @@ function fCalculateRpnExpression {
             for ($ArgNumber = $Operators[$Tokens[$i]]["Operands"]-1; $ArgNumber -ge 0; $ArgNumber--) {
                 $Arguments[$ArgNumber] = [decimal](fPopFromStack -StackInstance $Stack)
             }
-            fPushToStack -StackInstance $Stack -Value (fCalculateOperator -Operator $Tokens[$i] -Operands $Arguments) | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
+            fPushToStack -StackInstance $Stack -Value (fCalculateOperator -Operator $Tokens[$i] -Operands $Arguments) | Out-Null
         }
         else {
-            fPushToStack -StackInstance $Stack -Value $Tokens[$i] | Out-Null     # Out-Null prevents the function output to be passed through as return (PowerShell specifics)
+            fPushToStack -StackInstance $Stack -Value $Tokens[$i] | Out-Null
         }
     }
     return (fPopFromStack -StackInstance $Stack)
 }
 
-#***************************************
+#******************************************************************************
 
 $ErrorActionPreference="Stop"
+$MaxNumberOfTokens = 16
 
-$MaxNumberOfTokens = 1024
+Write-Host "`n*** Sample calculator (expression evaluator) program ***"
+Write-Host "*** Supported operators: '+' (unary and binary), '-' (unary and binary), '*' and '/' ***"
+Write-Host "*** Parentheses are supported ***`n"
 
 while ($Expression.Trim().Length -eq 0) {
-    $Expression = Read-Host -Prompt "Please enter the expression you want me to calculate ('exit' to quit)"
+    $Expression = Read-Host -Prompt "Please enter the expression you want me to calculate (use dot as a decimal separator; type 'exit' to quit)"
     if ($Expression.ToLower() -eq "exit") {
-        Write-Host "Sorry to hear you have changed your mind. Bye!"
+        Write-Host "`nSorry to hear you have changed your mind. Bye!`n"
         exit
     }
 }
+Write-Host "Original expression: $Expression"
 
 $RpnExpression = fConvertToRpn -Expr $Expression -StackLength $MaxNumberOfTokens -QueueLength $MaxNumberOfTokens
-
 Write-Host "The same expression in the RPN notation: $RpnExpression"
 
 $CalculationResult = fCalculateRpnExpression -RpnExpr $RpnExpression -StackLength $MaxNumberOfTokens
-
-Write-Host "This expression evaluates to $CalculationResult"
+Write-Host "This expression evaluates to $CalculationResult`n"
